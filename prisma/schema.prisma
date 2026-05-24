@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  avatar            String
+  role              String             @default("member")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  activities        Activity[]
+  subscriptionUsers SubscriptionUser[]
+  teamMembers       TeamMember[]
+}
+
+model Vendor {
+  id            String         @id @default(cuid())
+  name          String
+  logo          String
+  website       String?
+  description   String?
+  category      String         @default("Other")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  name              String
+  vendorId          String
+  logo              String
+  color             String             @default("#8b5cf6")
+  category          String
+  status            SubscriptionStatus @default(ACTIVE)
+  plan              String
+  billingCycle      BillingCycle       @default(MONTHLY)
+  amount            Decimal            @db.Decimal(10, 2)
+  currency          String             @default("USD")
+  nextRenewal       DateTime
+  seatsUsed         Int                @default(0)
+  seatsTotal        Int                @default(1)
+  description       String?
+  autoRenew         Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  activities        Activity[]
+  vendor            Vendor             @relation(fields: [vendorId], references: [id])
+  tags              SubscriptionTag[]
+  assignedUsers     SubscriptionUser[]
+  teamSubscriptions TeamSubscription[]
+}
+
+model SubscriptionTag {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  tag            String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model SubscriptionUser {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  userId         String
+  assignedAt     DateTime     @default(now())
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, userId])
+}
+
+model Team {
+  id            String             @id @default(cuid())
+  name          String
+  description   String?
+  color         String             @default("#8b5cf6")
+  avatar        String             @default("TM")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  members       TeamMember[]
+  subscriptions TeamSubscription[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+model TeamSubscription {
+  id             String       @id @default(cuid())
+  teamId         String
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  team           Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, subscriptionId])
+}
+
+model Activity {
+  id             String        @id @default(cuid())
+  type           String
+  description    String
+  subscriptionId String?
+  userId         String?
+  amount         Decimal?      @db.Decimal(10, 2)
+  createdAt      DateTime      @default(now())
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+  QUARTERLY
+}
