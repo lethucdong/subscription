@@ -5,14 +5,13 @@ import { BarChart3, TrendingUp, TrendingDown, DollarSign } from "lucide-react"
 import { SpendingChart } from "@/components/dashboard/SpendingChart"
 import { VendorSpendChart } from "@/components/dashboard/VendorSpendChart"
 import { formatCurrency } from "@/lib/utils"
-import type { DashboardStats, SerializedSubscription } from "@/types"
+import type { DashboardStats } from "@/types"
 
 interface AnalyticsClientProps {
   stats: DashboardStats | null
-  subscriptions: SerializedSubscription[]
 }
 
-export function AnalyticsClient({ stats, subscriptions }: AnalyticsClientProps) {
+export function AnalyticsClient({ stats }: AnalyticsClientProps) {
   const monthlySpending = stats?.monthlySpending ?? []
 
   const avgMonthly = monthlySpending.length > 0
@@ -29,19 +28,9 @@ export function AnalyticsClient({ stats, subscriptions }: AnalyticsClientProps) 
 
   const totalYearly = monthlySpending.reduce((s, m) => s + m.amount, 0)
 
-  // Category spend from real subscription data
-  const categorySpend = subscriptions
-    .filter(s => s.status !== "EXPIRED" && s.status !== "CANCELLED")
-    .reduce<Record<string, number>>((acc, s) => {
-      const amount = typeof s.amount === "number" ? s.amount : Number(s.amount)
-      acc[s.category] = (acc[s.category] || 0) + amount * 12
-      return acc
-    }, {})
-
+  const categorySpend = stats?.categorySpend ?? {}
   const totalCategorySpend = Object.values(categorySpend).reduce((a, b) => a + b, 0)
-
-  const sortedCategories = Object.entries(categorySpend)
-    .sort(([, a], [, b]) => b - a)
+  const sortedCategories = Object.entries(categorySpend).sort(([, a], [, b]) => b - a)
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">

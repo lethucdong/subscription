@@ -120,4 +120,5 @@ export interface DashboardStats {
   monthlySpending: { month: string; amount: number; previousAmount: number }[]
   vendorSpending: { name: string; logo: string; category: string; totalSpending: number }[]
   teamSpending: { name: string; totalSpend: number; subscriptionCount: number }[]
+  categorySpend: Record<string, number>
 }

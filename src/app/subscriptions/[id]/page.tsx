@@ -1,9 +1,8 @@
-export const dynamic = "force-dynamic"
-
 import { notFound } from "next/navigation"
 import { getSubscriptionById } from "@/app/actions/subscriptions"
 import { getActivities } from "@/app/actions/activities"
 import { getUsers } from "@/app/actions/users"
+import { getVendorsLean } from "@/app/actions/vendors"
 import { SubscriptionDetailClient } from "@/components/subscriptions/SubscriptionDetailClient"
 
 export default async function SubscriptionDetailPage({
@@ -12,10 +11,11 @@ export default async function SubscriptionDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [subResult, activitiesResult, usersResult] = await Promise.all([
+  const [subResult, activitiesResult, usersResult, vendors] = await Promise.all([
     getSubscriptionById(id),
     getActivities(id),
     getUsers(),
+    getVendorsLean(),
   ])
 
   if (!subResult.success) notFound()
@@ -29,6 +29,7 @@ export default async function SubscriptionDetailPage({
       subscription={sub}
       activities={activities}
       allUsers={allUsers}
+      vendors={vendors}
     />
   )
 }

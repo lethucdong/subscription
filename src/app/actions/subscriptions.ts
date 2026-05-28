@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
+import { cacheTag, cacheLife, updateTag } from "next/cache"
 import { SubscriptionStatus, BillingCycle, Prisma } from "@prisma/client"
 import type { SerializedSubscription } from "@/types"
 
@@ -70,6 +70,10 @@ export async function getSubscriptions(filter?: {
   status?: SubscriptionStatus
   search?: string
 }): Promise<{ success: true; data: SerializedSubscription[] } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("subscriptions")
+  cacheLife("minutes")
+
   try {
     const where: any = {}
     if (filter?.status) where.status = filter.status
@@ -93,9 +97,69 @@ export async function getSubscriptions(filter?: {
   }
 }
 
+// Lean variant — only fields needed by dashboard widgets (RenewalTimeline, SeatUsageCard).
+// Skips vendor/assignedUsers/tags includes to keep the cache payload small.
+export async function getSubscriptionsForDashboard(): Promise<SerializedSubscription[]> {
+  "use cache"
+  cacheTag("subscriptions")
+  cacheLife("minutes")
+
+  try {
+    const subs = await prisma.subscription.findMany({
+      select: {
+        id: true,
+        name: true,
+        logo: true,
+        color: true,
+        status: true,
+        category: true,
+        billingCycle: true,
+        amount: true,
+        currency: true,
+        nextRenewal: true,
+        seatsUsed: true,
+        seatsTotal: true,
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    const empty = { id: "", name: "", logo: "", website: null, description: null, category: "", createdAt: "", updatedAt: "" }
+    return subs.map((sub) => ({
+      id: sub.id,
+      name: sub.name,
+      vendorId: "",
+      logo: sub.logo,
+      color: sub.color,
+      category: sub.category,
+      status: sub.status as SerializedSubscription["status"],
+      plan: "",
+      billingCycle: sub.billingCycle as SerializedSubscription["billingCycle"],
+      amount: sub.amount instanceof Prisma.Decimal ? sub.amount.toNumber() : Number(sub.amount),
+      currency: sub.currency,
+      nextRenewal: sub.nextRenewal instanceof Date ? sub.nextRenewal.toISOString() : sub.nextRenewal,
+      seatsUsed: sub.seatsUsed,
+      seatsTotal: sub.seatsTotal,
+      description: null,
+      autoRenew: false,
+      createdAt: "",
+      updatedAt: "",
+      vendor: empty,
+      assignedUsers: [],
+      tags: [],
+    }))
+  } catch (error) {
+    console.error("getSubscriptionsForDashboard error:", error)
+    return []
+  }
+}
+
 export async function getSubscriptionById(
   id: string
 ): Promise<{ success: true; data: SerializedSubscription } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("subscriptions", `subscription:${id}`)
+  cacheLife("minutes")
+
   try {
     const sub = await prisma.subscription.findUnique({
       where: { id },
@@ -156,8 +220,7 @@ export async function createSubscription(data: {
       },
     })
 
-    revalidatePath("/subscriptions")
-    revalidatePath("/")
+    updateTag("subscriptions")
     return { success: true, id: sub.id }
   } catch (error) {
     console.error("createSubscription error:", error)
@@ -213,9 +276,8 @@ export async function updateSubscription(
       })
     })
 
-    revalidatePath("/subscriptions")
-    revalidatePath(`/subscriptions/${id}`)
-    revalidatePath("/")
+    updateTag("subscriptions")
+    updateTag("activities")
     return { success: true }
   } catch (error) {
     console.error("updateSubscription error:", error)
@@ -229,8 +291,8 @@ export async function deleteSubscription(id: string): Promise<{ success: boolean
       await tx.activity.deleteMany({ where: { subscriptionId: id } })
       await tx.subscription.delete({ where: { id } })
     })
-    revalidatePath("/subscriptions")
-    revalidatePath("/")
+    updateTag("subscriptions")
+    updateTag("activities")
     return { success: true }
   } catch (error) {
     console.error("deleteSubscription error:", error)
@@ -265,8 +327,8 @@ export async function assignUserToSubscription(
       })
     })
 
-    revalidatePath(`/subscriptions/${subscriptionId}`)
-    revalidatePath("/subscriptions")
+    updateTag("subscriptions")
+    updateTag("activities")
     return { success: true }
   } catch (error: any) {
     if (error?.code === "P2002") {
@@ -306,8 +368,8 @@ export async function removeUserFromSubscription(
       })
     })
 
-    revalidatePath(`/subscriptions/${subscriptionId}`)
-    revalidatePath("/subscriptions")
+    updateTag("subscriptions")
+    updateTag("activities")
     return { success: true }
   } catch (error) {
     console.error("removeUserFromSubscription error:", error)

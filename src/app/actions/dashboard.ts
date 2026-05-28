@@ -3,12 +3,17 @@
 import { prisma } from "@/lib/prisma"
 import type { DashboardStats } from "@/types"
 import { Prisma } from "@prisma/client"
+import { cacheTag, cacheLife } from "next/cache"
 
 export async function getDashboardStats(): Promise<{ success: true; data: DashboardStats } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("subscriptions", "vendors", "teams")
+  cacheLife("minutes")
+
   try {
     const [subscriptions, vendorData, teams] = await Promise.all([
       prisma.subscription.findMany({
-        include: { vendor: true },
+        select: { status: true, billingCycle: true, amount: true, seatsUsed: true, seatsTotal: true, category: true },
       }),
       prisma.vendor.findMany({
         include: {
@@ -49,8 +54,6 @@ export async function getDashboardStats(): Promise<{ success: true; data: Dashbo
 
     const vendorCount = vendorData.length
 
-    // Monthly spending: last 12 months from the seed data perspective
-    // Since we have fixed seed data, we generate representative monthly data
     const monthlyAmounts = [1250, 1380, 1290, 1520, 1680, 1420, 1850, 1750, 1620, 1890, 1518, 1518.5]
     const monthNames = ["Jun '25", "Jul '25", "Aug '25", "Sep '25", "Oct '25", "Nov '25", "Dec '25", "Jan '26", "Feb '26", "Mar '26", "Apr '26", "May '26"]
     const monthlySpending = monthNames.map((month, i) => ({
@@ -59,7 +62,6 @@ export async function getDashboardStats(): Promise<{ success: true; data: Dashbo
       previousAmount: i === 0 ? 1100 : monthlyAmounts[i - 1],
     }))
 
-    // Vendor spending (annual)
     const vendorSpending = vendorData
       .map((v) => ({
         name: v.name,
@@ -77,7 +79,6 @@ export async function getDashboardStats(): Promise<{ success: true; data: Dashbo
       .filter((v) => v.totalSpending > 0)
       .sort((a, b) => b.totalSpending - a.totalSpending)
 
-    // Team spending (annual)
     const teamSpending = teams.map((team) => ({
       name: team.name,
       subscriptionCount: team.subscriptions.length,
@@ -87,6 +88,12 @@ export async function getDashboardStats(): Promise<{ success: true; data: Dashbo
         return sum + amount * 12
       }, 0),
     }))
+
+    const categorySpend: Record<string, number> = {}
+    for (const s of nonExpiredSubs) {
+      const amount = toNum(s.amount)
+      categorySpend[s.category] = (categorySpend[s.category] ?? 0) + amount * 12
+    }
 
     return {
       success: true,
@@ -102,6 +109,7 @@ export async function getDashboardStats(): Promise<{ success: true; data: Dashbo
         monthlySpending,
         vendorSpending,
         teamSpending,
+        categorySpend,
       },
     }
   } catch (error) {

@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
+import { cacheTag, cacheLife, updateTag } from "next/cache"
 import type { SerializedTeam } from "@/types"
 import { Prisma } from "@prisma/client"
 
@@ -82,6 +82,10 @@ const teamInclude = {
 }
 
 export async function getTeams(): Promise<{ success: true; data: SerializedTeam[] } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("teams")
+  cacheLife("minutes")
+
   try {
     const teams = await prisma.team.findMany({
       include: teamInclude,
@@ -97,6 +101,10 @@ export async function getTeams(): Promise<{ success: true; data: SerializedTeam[
 export async function getTeamById(
   id: string
 ): Promise<{ success: true; data: SerializedTeam } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("teams", `team:${id}`)
+  cacheLife("minutes")
+
   try {
     const team = await prisma.team.findUnique({ where: { id }, include: teamInclude })
     if (!team) return { success: false, error: "Team not found" }
@@ -115,7 +123,7 @@ export async function createTeam(data: {
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
     const team = await prisma.team.create({ data })
-    revalidatePath("/teams")
+    updateTag("teams")
     return { success: true, id: team.id }
   } catch (error) {
     console.error("createTeam error:", error)
@@ -129,7 +137,7 @@ export async function updateTeam(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await prisma.team.update({ where: { id }, data })
-    revalidatePath("/teams")
+    updateTag("teams")
     return { success: true }
   } catch (error) {
     console.error("updateTeam error:", error)
@@ -140,7 +148,7 @@ export async function updateTeam(
 export async function deleteTeam(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     await prisma.team.delete({ where: { id } })
-    revalidatePath("/teams")
+    updateTag("teams")
     return { success: true }
   } catch (error) {
     console.error("deleteTeam error:", error)
@@ -155,7 +163,7 @@ export async function addTeamMember(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await prisma.teamMember.create({ data: { teamId, userId, role } })
-    revalidatePath("/teams")
+    updateTag("teams")
     return { success: true }
   } catch (error: any) {
     if (error?.code === "P2002") {
@@ -171,10 +179,45 @@ export async function removeTeamMember(teamId: string, userId: string): Promise<
     await prisma.teamMember.delete({
       where: { teamId_userId: { teamId, userId } },
     })
-    revalidatePath("/teams")
+    updateTag("teams")
     return { success: true }
   } catch (error) {
     console.error("removeTeamMember error:", error)
     return { success: false, error: "Failed to remove team member" }
+  }
+}
+
+export async function assignSubscriptionToTeam(
+  teamId: string,
+  subscriptionId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await prisma.teamSubscription.create({ data: { teamId, subscriptionId } })
+    updateTag("teams")
+    updateTag("vendors")
+    return { success: true }
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      return { success: false, error: "This subscription is already assigned to the team" }
+    }
+    console.error("assignSubscriptionToTeam error:", error)
+    return { success: false, error: "Failed to assign subscription" }
+  }
+}
+
+export async function removeSubscriptionFromTeam(
+  teamId: string,
+  subscriptionId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await prisma.teamSubscription.delete({
+      where: { teamId_subscriptionId: { teamId, subscriptionId } },
+    })
+    updateTag("teams")
+    updateTag("vendors")
+    return { success: true }
+  } catch (error) {
+    console.error("removeSubscriptionFromTeam error:", error)
+    return { success: false, error: "Failed to remove subscription from team" }
   }
 }

@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
+import { cacheTag, cacheLife, updateTag } from "next/cache"
 import type { SerializedVendor } from "@/types"
 import { Prisma } from "@prisma/client"
 
@@ -28,6 +28,10 @@ function serializeVendor(vendor: any, computed?: {
 }
 
 export async function getVendors(): Promise<{ success: true; data: SerializedVendor[] } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("vendors")
+  cacheLife("minutes")
+
   try {
     const vendors = await prisma.vendor.findMany({
       include: {
@@ -67,9 +71,42 @@ export async function getVendors(): Promise<{ success: true; data: SerializedVen
   }
 }
 
+// Lean variant — only id/name/logo/category for dropdown selects.
+// Avoids loading subscriptions and team links.
+export async function getVendorsLean(): Promise<SerializedVendor[]> {
+  "use cache"
+  cacheTag("vendors")
+  cacheLife("minutes")
+
+  try {
+    const vendors = await prisma.vendor.findMany({
+      select: { id: true, name: true, logo: true, category: true },
+      orderBy: { name: "asc" },
+    })
+
+    return vendors.map((v) => ({
+      id: v.id,
+      name: v.name,
+      logo: v.logo,
+      website: null,
+      description: null,
+      category: v.category,
+      createdAt: "",
+      updatedAt: "",
+    }))
+  } catch (error) {
+    console.error("getVendorsLean error:", error)
+    return []
+  }
+}
+
 export async function getVendorById(
   id: string
 ): Promise<{ success: true; data: SerializedVendor } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("vendors", `vendor:${id}`)
+  cacheLife("minutes")
+
   try {
     const vendor = await prisma.vendor.findUnique({
       where: { id },
@@ -108,8 +145,7 @@ export async function createVendor(data: {
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
     const vendor = await prisma.vendor.create({ data })
-    revalidatePath("/vendors")
-    revalidatePath("/subscriptions")
+    updateTag("vendors")
     return { success: true, id: vendor.id }
   } catch (error) {
     console.error("createVendor error:", error)
@@ -123,7 +159,7 @@ export async function updateVendor(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await prisma.vendor.update({ where: { id }, data })
-    revalidatePath("/vendors")
+    updateTag("vendors")
     return { success: true }
   } catch (error) {
     console.error("updateVendor error:", error)
@@ -142,9 +178,9 @@ export async function deleteVendor(id: string): Promise<{ success: boolean; erro
       }
       await tx.vendor.delete({ where: { id } })
     })
-    revalidatePath("/vendors")
-    revalidatePath("/subscriptions")
-    revalidatePath("/")
+    updateTag("vendors")
+    updateTag("subscriptions")
+    updateTag("activities")
     return { success: true }
   } catch (error) {
     console.error("deleteVendor error:", error)

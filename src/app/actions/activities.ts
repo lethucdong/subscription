@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { cacheTag, cacheLife } from "next/cache"
 import type { SerializedActivity } from "@/types"
 import { Prisma } from "@prisma/client"
 
@@ -24,6 +25,10 @@ export async function getActivities(
   subscriptionId?: string,
   limit = 50
 ): Promise<{ success: true; data: SerializedActivity[] } | { success: false; error: string }> {
+  "use cache"
+  cacheTag("activities")
+  cacheLife("minutes")
+
   try {
     const activities = await prisma.activity.findMany({
       where: subscriptionId ? { subscriptionId } : undefined,

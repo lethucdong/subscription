@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { Suspense } from "react"
 import "./globals.css"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { ThemeProvider } from "@/components/ThemeProvider"
@@ -32,7 +33,9 @@ export default function RootLayout({
     >
       <body className="h-full">
         <ThemeProvider>
-          <AppLayout>{children}</AppLayout>
+          <Suspense fallback={null}>
+            <AppLayout>{children}</AppLayout>
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

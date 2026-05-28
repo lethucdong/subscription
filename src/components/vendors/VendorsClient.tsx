@@ -3,10 +3,11 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Building2, TrendingUp, Package, ExternalLink, Plus, X } from "lucide-react"
+import { Building2, TrendingUp, Package, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { createVendor } from "@/app/actions/vendors"
+import { deleteVendor } from "@/app/actions/vendors"
+import { VendorFormModal } from "@/components/vendors/VendorFormModal"
 import type { SerializedVendor } from "@/types"
 
 const categoryColors: Record<string, { bg: string; text: string; border: string }> = {
@@ -34,165 +35,51 @@ const getCategoryGradient = (category: string) => {
   return gradients[category] || "#6b7280"
 }
 
-const LOGOS = ["🤖", "🎨", "🅰️", "📝", "💬", "🐙", "📐", "▲", "💻", "📊", "🔒", "☁️"]
-const CATEGORIES = ["AI & ML", "Design", "Development", "Communication", "Productivity", "Analytics", "Security", "Marketing", "Infrastructure", "Project Management", "Other"]
-
-interface AddVendorModalProps {
-  onClose: () => void
+interface VendorCardMenuProps {
+  vendor: SerializedVendor
+  onEdit: () => void
+  onDelete: () => void
 }
 
-function AddVendorModal({ onClose }: AddVendorModalProps) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [form, setForm] = useState({
-    name: "",
-    logo: "🤖",
-    category: "Other",
-    website: "",
-    description: "",
-  })
-  const [error, setError] = useState<string | null>(null)
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.name.trim()) return
-    setError(null)
-
-    startTransition(async () => {
-      const result = await createVendor({
-        name: form.name.trim(),
-        logo: form.logo,
-        category: form.category,
-        website: form.website.trim() || undefined,
-        description: form.description.trim() || undefined,
-      })
-
-      if (result.success) {
-        router.refresh()
-        onClose()
-      } else {
-        setError(result.error ?? "Failed to create vendor")
-      }
-    })
-  }
-
-  const inputCls = "w-full rounded-xl border border-white/[0.08] bg-gray-900/80 px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
+function VendorCardMenu({ vendor, onEdit, onDelete }: VendorCardMenuProps) {
+  const [open, setOpen] = useState(false)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="relative w-full max-w-md rounded-2xl border border-white/[0.12] bg-gray-900 p-6 shadow-2xl"
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="rounded-lg p-1.5 text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
+        aria-label={`Open menu for ${vendor.name}`}
       >
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-base font-semibold text-white">Add Vendor</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-              Logo Emoji
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {LOGOS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, logo: emoji }))}
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-xl text-lg border transition-all",
-                    form.logo === emoji
-                      ? "border-violet-500/60 bg-violet-500/15 scale-110"
-                      : "border-white/[0.06] bg-gray-900/50 hover:border-white/[0.14]"
-                  )}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-              Name <span className="text-violet-400">*</span>
-            </label>
-            <input
-              className={inputCls}
-              placeholder="e.g. Stripe"
-              value={form.name}
-              onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
-              required
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Category</label>
-            <select
-              className={inputCls + " cursor-pointer"}
-              value={form.category}
-              onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
-            >
-              {CATEGORIES.map(c => (
-                <option key={c} value={c} className="bg-gray-900">{c}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Website</label>
-            <input
-              className={inputCls}
-              placeholder="https://example.com"
-              value={form.website}
-              onChange={(e) => setForm(f => ({ ...f, website: e.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Description</label>
-            <textarea
-              className={inputCls + " resize-none"}
-              placeholder="What does this vendor provide?"
-              rows={2}
-              value={form.description}
-              onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-8 z-20 w-36 rounded-xl border border-white/[0.1] bg-gray-900 shadow-xl overflow-hidden">
             <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-white/[0.08] px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+              onClick={() => {
+                setOpen(false)
+                onEdit()
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-white/[0.06] transition-colors"
             >
-              Cancel
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
             </button>
             <button
-              type="submit"
-              disabled={isPending || !form.name.trim()}
-              className="rounded-xl bg-violet-600 hover:bg-violet-500 px-5 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 flex items-center gap-2"
+              onClick={() => {
+                setOpen(false)
+                onDelete()
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
             >
-              {isPending ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Adding...
-                </>
-              ) : "Add Vendor"}
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
             </button>
           </div>
-        </form>
-      </motion.div>
+        </>
+      )}
     </div>
   )
 }
@@ -202,14 +89,37 @@ interface VendorsClientProps {
 }
 
 export function VendorsClient({ vendors }: VendorsClientProps) {
-  const [addModalOpen, setAddModalOpen] = useState(false)
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [addOpen, setAddOpen] = useState(false)
+  const [editing, setEditing] = useState<SerializedVendor | null>(null)
   const totalAnnualSpend = vendors.reduce((sum, v) => sum + (v.totalAnnualSpend ?? 0), 0)
+
+  function handleDelete(vendor: SerializedVendor) {
+    const productCount = vendor.subscriptionCount ?? 0
+    const message =
+      productCount > 0
+        ? `Delete "${vendor.name}"? This will also delete ${productCount} subscription${productCount > 1 ? "s" : ""}. This cannot be undone.`
+        : `Delete "${vendor.name}"? This cannot be undone.`
+    if (!confirm(message)) return
+
+    startTransition(async () => {
+      const result = await deleteVendor(vendor.id)
+      if (result.success) {
+        router.refresh()
+      } else {
+        alert(result.error ?? "Failed to delete vendor")
+      }
+    })
+  }
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
-      {addModalOpen && <AddVendorModal onClose={() => setAddModalOpen(false)} />}
+      {addOpen && <VendorFormModal mode="create" onClose={() => setAddOpen(false)} />}
+      {editing && (
+        <VendorFormModal mode="edit" vendor={editing} onClose={() => setEditing(null)} />
+      )}
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Vendors</h1>
@@ -218,7 +128,7 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
           </p>
         </div>
         <button
-          onClick={() => setAddModalOpen(true)}
+          onClick={() => setAddOpen(true)}
           className="flex items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-500 active:scale-[0.97] px-4 py-2.5 text-sm font-medium text-white transition-all"
         >
           <Plus className="h-4 w-4" />
@@ -226,7 +136,6 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
         </button>
       </div>
 
-      {/* Summary stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           {
@@ -273,15 +182,15 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
         ))}
       </div>
 
-      {/* Vendors grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {vendors
           .sort((a, b) => (b.totalAnnualSpend ?? 0) - (a.totalAnnualSpend ?? 0))
           .map((vendor, i) => {
             const colors = categoryColors[vendor.category] || categoryColors["Other"]
-            const pct = totalAnnualSpend > 0
-              ? Math.round(((vendor.totalAnnualSpend ?? 0) / totalAnnualSpend) * 100)
-              : 0
+            const pct =
+              totalAnnualSpend > 0
+                ? Math.round(((vendor.totalAnnualSpend ?? 0) / totalAnnualSpend) * 100)
+                : 0
 
             return (
               <motion.div
@@ -289,34 +198,46 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 + 0.15 }}
-                whileHover={{ scale: 1.02, y: -2 }}
-                className="group relative rounded-2xl border border-white/[0.08] bg-gray-900/50 p-5 backdrop-blur-sm hover:border-white/[0.14] hover:bg-gray-900/70 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-200 cursor-pointer"
+                whileHover={{ y: -2 }}
+                className={cn(
+                  "group relative rounded-2xl border border-white/[0.08] bg-gray-900/50 p-5 backdrop-blur-sm hover:border-white/[0.14] hover:bg-gray-900/70 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-200",
+                  isPending && "opacity-60"
+                )}
               >
-                {/* Hover gradient */}
                 <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
 
-                {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "flex h-12 w-12 items-center justify-center rounded-xl text-2xl border",
-                      colors.bg, colors.border
-                    )}>
+                    <div
+                      className={cn(
+                        "flex h-12 w-12 items-center justify-center rounded-xl text-2xl border",
+                        colors.bg,
+                        colors.border
+                      )}
+                    >
                       {vendor.logo}
                     </div>
                     <div>
                       <h3 className="text-sm font-semibold text-white">{vendor.name}</h3>
-                      <span className={cn(
-                        "text-[10px] font-medium px-2 py-0.5 rounded-full border",
-                        colors.bg, colors.text, colors.border
-                      )}>
+                      <span
+                        className={cn(
+                          "text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                          colors.bg,
+                          colors.text,
+                          colors.border
+                        )}
+                      >
                         {vendor.category}
                       </span>
                     </div>
                   </div>
+                  <VendorCardMenu
+                    vendor={vendor}
+                    onEdit={() => setEditing(vendor)}
+                    onDelete={() => handleDelete(vendor)}
+                  />
                 </div>
 
-                {/* Stats */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">Annual Spend</span>
@@ -330,14 +251,15 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
                     <span className="text-xs font-medium text-gray-300 tabular-nums">{pct}%</span>
                   </div>
 
-                  {/* Mini bar */}
                   <div className="w-full h-1 rounded-full bg-white/[0.06] overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
                       transition={{ delay: i * 0.05 + 0.3, duration: 0.6, ease: "easeOut" }}
                       className="h-full rounded-full"
-                      style={{ background: `linear-gradient(90deg, ${getCategoryGradient(vendor.category)}, transparent)` }}
+                      style={{
+                        background: `linear-gradient(90deg, ${getCategoryGradient(vendor.category)}, transparent)`,
+                      }}
                     />
                   </div>
 
@@ -352,7 +274,6 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
                     </div>
                   </div>
 
-                  {/* Teams */}
                   {vendor.teamNames && vendor.teamNames.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {vendor.teamNames.slice(0, 3).map((team) => (
@@ -376,7 +297,6 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
           })}
       </div>
 
-      {/* Spend breakdown table */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -391,10 +311,10 @@ export function VendorsClient({ vendors }: VendorsClientProps) {
           {vendors
             .sort((a, b) => (b.totalAnnualSpend ?? 0) - (a.totalAnnualSpend ?? 0))
             .map((vendor, i) => {
-              const pct = totalAnnualSpend > 0
-                ? Math.round(((vendor.totalAnnualSpend ?? 0) / totalAnnualSpend) * 100)
-                : 0
-              const colors = categoryColors[vendor.category] || categoryColors["Other"]
+              const pct =
+                totalAnnualSpend > 0
+                  ? Math.round(((vendor.totalAnnualSpend ?? 0) / totalAnnualSpend) * 100)
+                  : 0
               return (
                 <div
                   key={vendor.id}

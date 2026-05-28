@@ -8,6 +8,7 @@ import {
   CreditCard,
   Building2,
   Users,
+  UserCircle,
   BarChart3,
   Settings,
   ChevronLeft,
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/subscriptions", icon: CreditCard, label: "Subscriptions" },
   { href: "/vendors", icon: Building2, label: "Vendors" },
   { href: "/teams", icon: Users, label: "Teams" },
+  { href: "/users", icon: UserCircle, label: "Users" },
   { href: "/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ]

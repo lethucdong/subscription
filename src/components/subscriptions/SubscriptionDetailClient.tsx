@@ -18,13 +18,15 @@ import {
   Clock,
   DollarSign,
   X,
+  Pencil,
 } from "lucide-react"
 import { StatusBadge, Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { formatCurrency, formatDate, daysUntil } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { assignUserToSubscription, removeUserFromSubscription, deleteSubscription } from "@/app/actions/subscriptions"
-import type { SerializedSubscription, SerializedActivity, SerializedUser } from "@/types"
+import { SubscriptionFormModal } from "@/components/subscriptions/SubscriptionFormModal"
+import type { SerializedSubscription, SerializedActivity, SerializedUser, SerializedVendor } from "@/types"
 
 function ActivityIcon({ type }: { type: string }) {
   const config: Record<string, { icon: typeof RefreshCw; bg: string; color: string }> = {
@@ -123,12 +125,14 @@ interface Props {
   subscription: SerializedSubscription
   activities: SerializedActivity[]
   allUsers: SerializedUser[]
+  vendors: SerializedVendor[]
 }
 
-export function SubscriptionDetailClient({ subscription: sub, activities, allUsers }: Props) {
+export function SubscriptionDetailClient({ subscription: sub, activities, allUsers, vendors }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
 
   const days = daysUntil(sub.nextRenewal)
   const pct = sub.seatsTotal > 0 ? Math.round((sub.seatsUsed / sub.seatsTotal) * 100) : 0
@@ -164,6 +168,15 @@ export function SubscriptionDetailClient({ subscription: sub, activities, allUse
           />
         )}
       </AnimatePresence>
+
+      <SubscriptionFormModal
+        mode="edit"
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        vendors={vendors}
+        subscription={sub}
+        onSuccess={() => router.refresh()}
+      />
 
       {/* Back button */}
       <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}>
@@ -215,6 +228,14 @@ export function SubscriptionDetailClient({ subscription: sub, activities, allUse
             </div>
           </div>
           <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => setEditModalOpen(true)}
+              disabled={isPending}
+              className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-sm text-gray-300 hover:bg-white/[0.08] hover:border-white/[0.16] transition-colors disabled:opacity-50"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
             <button
               onClick={handleDelete}
               disabled={isPending}
